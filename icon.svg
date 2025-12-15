@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#34D399;stop-opacity:1" /> <!-- Emerald 400 -->
+      <stop offset="100%" style="stop-color:#3B82F6;stop-opacity:1" /> <!-- Blue 500 -->
+    </linearGradient>
+  </defs>
+  <circle cx="256" cy="256" r="240" fill="#111827"/> <!-- Dark Background -->
+  <!-- The Cycle Arrow -->
+  <path d="M256 128C326.7 128 384 185.3 384 256C384 326.7 326.7 384 256 384C185.3 384 128 326.7 128 256" stroke="url(#grad)" stroke-width="40" stroke-linecap="round" fill="none"/>
+  <path d="M128 256L96 200M128 256L160 200" stroke="url(#grad)" stroke-width="40" stroke-linecap="round" fill="none"/> <!-- Arrow Head -->
+  <!-- The Center Dot (Target) -->
+  <circle cx="256" cy="256" r="30" fill="url(#grad)"/>
+</svg>

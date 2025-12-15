@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cycle Keeper | 週期管家</title>
+    
+    <!-- 設定 Favicon (使用 Data URI 讓單檔也能有圖示) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2250%22 fill=%22%23111827%22/><path d=%22M50 25a25 25 0 0 1 25 25%22 stroke=%22%2334D399%22 stroke-width=%228%22 fill=%22none%22/><circle cx=%2250%22 cy=%2250%22 r=%2210%22 fill=%22%2334D399%22/></svg>">
+
+    <!-- 載入 Tailwind CSS (樣式庫) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 載入 Vue 3 (核心框架) -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+    <!-- Tailwind 設定 -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        gray: { 850: '#1f2937', 900: '#111827', 950: '#030712' }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* 一些微調的 CSS */
+        body { background-color: #030712; color: #e5e7eb; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .card-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5); }
+        .smooth-transition { transition: all 0.3s ease; }
+        
+        /* 進度條動畫 */
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+        .animate-pulse-slow { animation: pulse-glow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    </style>
+</head>
+<body class="min-h-screen p-4 pb-20">
+
+    <div id="app" class="max-w-md mx-auto relative">
+        
+        <!-- Header -->
+        <header class="flex items-center justify-between mb-8 mt-2">
+            <div class="flex items-center gap-3">
+                <!-- SVG Logo -->
+                <svg class="w-10 h-10 text-emerald-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor">
+                     <path d="M256 128C326.7 128 384 185.3 384 256C384 326.7 326.7 384 256 384C185.3 384 128 326.7 128 256" stroke="currentColor" stroke-width="40" stroke-linecap="round" fill="none"/>
+                     <circle cx="256" cy="256" r="30"/>
+                     <path d="M128 256L96 200M128 256L160 200" stroke="currentColor" stroke-width="40" stroke-linecap="round" fill="none"/>
+                </svg>
+                <div>
+                    <h1 class="text-xl font-bold tracking-wide text-white">Cycle Keeper</h1>
+                    <p class="text-xs text-gray-400">週期任務追蹤</p>
+                </div>
+            </div>
+            <button @click="showAddModal = true" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-full p-3 shadow-lg smooth-transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+            </button>
+        </header>
+
+        <!-- 列表區域 -->
+        <div class="space-y-4">
+            <div v-if="items.length === 0" class="text-center py-20 text-gray-500">
+                <p>還沒有追蹤項目</p>
+                <p class="text-sm mt-2">點擊右上角 + 新增你的第一個週期</p>
+            </div>
+
+            <div v-for="item in sortedItems" :key="item.id" 
+                 class="bg-gray-850 rounded-2xl p-5 card-shadow border border-gray-800 relative overflow-hidden group">
+                
+                <!-- 狀態光暈 (背景裝飾) -->
+                <div class="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-transparent to-white opacity-5 rounded-bl-full pointer-events-none"></div>
+
+                <div class="flex justify-between items-start mb-2">
+                    <div>
+                        <h3 class="text-lg font-bold text-white">{{ item.name }}</h3>
+                        <p class="text-xs text-gray-400">週期: {{ item.cycleDays }} 天</p>
+                    </div>
+                    
+                    <!-- 狀態標籤 -->
+                    <span :class="getStatusColor(item).badge" class="px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wider">
+                        {{ getStatusText(item) }}
+                    </span>
+                </div>
+
+                <!-- 核心數據: 天數 -->
+                <div class="flex items-baseline gap-2 my-3">
+                    <span class="text-4xl font-black text-white">{{ getDaysSince(item.lastDate) }}</span>
+                    <span class="text-sm text-gray-400">天前重置</span>
+                </div>
+
+                <!-- 進度條 -->
+                <div class="w-full bg-gray-700 rounded-full h-2.5 mb-4 overflow-hidden">
+                    <div :class="getStatusColor(item).bar" class="h-2.5 rounded-full smooth-transition" :style="{ width: getProgressPercent(item) + '%' }"></div>
+                </div>
+
+                <!-- 操作按鈕區 -->
+                <div class="flex gap-2 mt-2">
+                    <!-- 重置按鈕 (主要) -->
+                    <button @click="resetItem(item.id)" 
+                            class="flex-1 bg-gray-700 hover:bg-gray-600 active:bg-gray-500 text-white py-2 px-4 rounded-lg text-sm font-medium smooth-transition flex justify-center items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        重置 (剛做了)
+                    </button>
+
+                    <!-- Google Calendar 按鈕 -->
+                    <a :href="getCalendarUrl(item)" target="_blank"
+                       class="bg-gray-800 hover:bg-gray-700 text-gray-300 py-2 px-3 rounded-lg flex items-center justify-center border border-gray-700 smooth-transition"
+                       title="加入行事曆提醒">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                    </a>
+
+                    <!-- 刪除按鈕 -->
+                    <button @click="deleteItem(item.id)" class="text-gray-500 hover:text-red-400 px-2 smooth-transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 新增視窗 (Modal) -->
+        <div v-if="showAddModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-80 backdrop-blur-sm">
+            <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-gray-700">
+                <h2 class="text-xl font-bold text-white mb-4">新增追蹤週期</h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">任務名稱</label>
+                        <input v-model="newItem.name" type="text" placeholder="例如: 剪頭髮" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">週期天數</label>
+                        <input v-model.number="newItem.cycleDays" type="number" placeholder="21" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+
+                <div class="flex gap-3 mt-6">
+                    <button @click="showAddModal = false" class="flex-1 py-3 text-gray-400 hover:text-white">取消</button>
+                    <button @click="addItem" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg shadow-lg">新增</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted, watch } = Vue;
+
+        createApp({
+            setup() {
+                const showAddModal = ref(false);
+                
+                // 預設資料結構
+                const newItem = ref({
+                    name: '',
+                    cycleDays: null
+                });
+
+                const items = ref([]);
+
+                // 載入資料
+                onMounted(() => {
+                    const saved = localStorage.getItem('cycle-keeper-data');
+                    if (saved) {
+                        items.value = JSON.parse(saved);
+                    } else {
+                        // 預設範例
+                        items.value = [
+                            { id: 1, name: '剪頭髮', cycleDays: 21, lastDate: new Date(Date.now() - 15 * 86400000).toISOString() }, // 假裝15天前剪的
+                        ];
+                    }
+                });
+
+                // 監聽資料變動並存檔
+                watch(items, (newVal) => {
+                    localStorage.setItem('cycle-keeper-data', JSON.stringify(newVal));
+                }, { deep: true });
+
+                // 計算相差天數
+                const getDaysSince = (dateString) => {
+                    const last = new Date(dateString);
+                    const now = new Date();
+                    const diffTime = Math.abs(now - last);
+                    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
+                    return diffDays;
+                };
+
+                // 計算進度百分比 (用於進度條)
+                const getProgressPercent = (item) => {
+                    const days = getDaysSince(item.lastDate);
+                    const percent = (days / item.cycleDays) * 100;
+                    return Math.min(percent, 100); // 最多 100%
+                };
+
+                // 判斷狀態顏色
+                const getStatusColor = (item) => {
+                    const percent = (getDaysSince(item.lastDate) / item.cycleDays) * 100;
+                    
+                    if (percent >= 100) {
+                        return { badge: 'bg-red-500/20 text-red-400 border border-red-500/30', bar: 'bg-red-500 animate-pulse-slow' }; // 過期 (紅)
+                    } else if (percent >= 75) {
+                        return { badge: 'bg-amber-500/20 text-amber-400 border border-amber-500/30', bar: 'bg-amber-500' }; // 警告 (黃)
+                    } else {
+                        return { badge: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30', bar: 'bg-emerald-500' }; // 安全 (綠)
+                    }
+                };
+
+                const getStatusText = (item) => {
+                    const days = getDaysSince(item.lastDate);
+                    if (days >= item.cycleDays) return '已過期';
+                    if (days / item.cycleDays >= 0.75) return '該準備了';
+                    return '狀態良好';
+                };
+
+                // 產生 Google Calendar 連結
+                const getCalendarUrl = (item) => {
+                    const last = new Date(item.lastDate);
+                    // 預計下次時間 = 上次時間 + 週期
+                    let nextDate = new Date(last.getTime() + (item.cycleDays * 24 * 60 * 60 * 1000));
+                    
+                    // 如果下次時間已經過了(過期狀態)，建議日期設為明天
+                    if (nextDate < new Date()) {
+                        nextDate = new Date();
+                        nextDate.setDate(nextDate.getDate() + 1);
+                    }
+
+                    // 格式化日期為 YYYYMMDD
+                    const formatDate = (d) => {
+                        return d.toISOString().replace(/-|:|\.\d\d\d/g, "").substring(0, 8);
+                    };
+
+                    const dateStr = formatDate(nextDate);
+                    const details = `該${item.name}囉！已經過了 ${item.cycleDays} 天的週期。`;
+                    
+                    // Google Calendar Link Format
+                    return `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(item.name)}&dates=${dateStr}/${dateStr}&details=${encodeURIComponent(details)}`;
+                };
+
+                // 動作: 新增
+                const addItem = () => {
+                    if (!newItem.value.name || !newItem.value.cycleDays) return;
+                    
+                    items.value.push({
+                        id: Date.now(),
+                        name: newItem.value.name,
+                        cycleDays: newItem.value.cycleDays,
+                        lastDate: new Date().toISOString() // 預設新增時代表剛做完
+                    });
+                    
+                    newItem.value = { name: '', cycleDays: null };
+                    showAddModal.value = false;
+                };
+
+                // 動作: 重置 (剛做完)
+                const resetItem = (id) => {
+                    if(!confirm('確定剛剛完成了這個任務嗎？')) return;
+                    const item = items.value.find(i => i.id === id);
+                    if (item) {
+                        item.lastDate = new Date().toISOString();
+                    }
+                };
+
+                // 動作: 刪除
+                const deleteItem = (id) => {
+                    if(!confirm('確定要刪除嗎？')) return;
+                    items.value = items.value.filter(i => i.id !== id);
+                };
+
+                // 排序：過期(完成度高)的排前面
+                const sortedItems = computed(() => {
+                    return [...items.value].sort((a, b) => {
+                        const pA = getDaysSince(a.lastDate) / a.cycleDays;
+                        const pB = getDaysSince(b.lastDate) / b.cycleDays;
+                        return pB - pA; // 降冪
+                    });
+                });
+
+                return {
+                    items, sortedItems, showAddModal, newItem,
+                    addItem, resetItem, deleteItem,
+                    getDaysSince, getProgressPercent, getStatusColor, getStatusText, getCalendarUrl
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
