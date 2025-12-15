@@ -3,9 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <!-- iOS PWA 專用設定 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Cycle Keeper">
+
     <title>Cycle Keeper | 週期管家</title>
     
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2250%22 fill=%22%23111827%22/><path d=%22M50 25a25 25 0 0 1 25 25%22 stroke=%22%2334D399%22 stroke-width=%228%22 fill=%22none%22/><circle cx=%2250%22 cy=%2250%22 r=%2210%22 fill=%22%2334D399%22/></svg>">
+    <!-- 關鍵：這裡直接連結你的圖片檔案 -->
+    <link rel="icon" type="image/png" href="icon.png">
+    <link rel="apple-touch-icon" href="icon.png">
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 
@@ -28,12 +37,7 @@
         .smooth-transition { transition: all 0.3s ease; }
         @keyframes pulse-glow { 0%, 100% { opacity: 1; } 50% { opacity: 0.8; } }
         .animate-pulse-slow { animation: pulse-glow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-        
-        /* 讓 Date Input 在暗黑模式下好看一點 */
-        input[type="date"]::-webkit-calendar-picker-indicator {
-            filter: invert(1);
-            cursor: pointer;
-        }
+        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
     </style>
 </head>
 <body class="min-h-screen p-4 pb-20">
@@ -42,6 +46,7 @@
         
         <header class="flex items-center justify-between mb-8 mt-2">
             <div class="flex items-center gap-3">
+                <!-- 頁面內的 Logo 還是保留 SVG 代碼，這樣比較清晰且不用依賴圖片載入 -->
                 <svg class="w-10 h-10 text-emerald-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor">
                      <path d="M256 128C326.7 128 384 185.3 384 256C384 326.7 326.7 384 256 384C185.3 384 128 326.7 128 256" stroke="currentColor" stroke-width="40" stroke-linecap="round" fill="none"/>
                      <circle cx="256" cy="256" r="30"/>
@@ -129,7 +134,6 @@
                         <label class="block text-sm text-gray-400 mb-1">週期天數</label>
                         <input v-model.number="newItem.cycleDays" type="number" placeholder="21" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-indigo-500">
                     </div>
-                    <!-- 新增日期選擇欄位 -->
                     <div>
                         <label class="block text-sm text-gray-400 mb-1">上次執行日期</label>
                         <input v-model="newItem.lastDate" type="date" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-indigo-500">
@@ -152,31 +156,17 @@
         createApp({
             setup() {
                 const showAddModal = ref(false);
-                
-                const newItem = ref({
-                    name: '',
-                    cycleDays: null,
-                    lastDate: '' // 改為字串格式 YYYY-MM-DD
-                });
-
+                const newItem = ref({ name: '', cycleDays: null, lastDate: '' });
                 const items = ref([]);
 
-                // 取得今天日期 YYYY-MM-DD 格式 (考慮本地時區)
                 const getTodayString = () => {
                     const d = new Date();
-                    // 修正：直接使用 toISOString 會拿到 UTC+0 的日期，可能會差一天
-                    // 改用本地日期偏移修正
                     const offset = d.getTimezoneOffset() * 60000;
-                    const localISOTime = (new Date(d - offset)).toISOString().slice(0, 10);
-                    return localISOTime;
+                    return (new Date(d - offset)).toISOString().slice(0, 10);
                 };
 
                 const openAddModal = () => {
-                    newItem.value = { 
-                        name: '', 
-                        cycleDays: null, 
-                        lastDate: getTodayString() // 每次打開預設填入今天
-                    };
+                    newItem.value = { name: '', cycleDays: null, lastDate: getTodayString() };
                     showAddModal.value = true;
                 };
 
@@ -185,50 +175,31 @@
                     if (saved) {
                         items.value = JSON.parse(saved);
                     } else {
-                        items.value = [
-                            // 範例資料不需要改，邏輯通了就好
-                            { id: 1, name: '剪頭髮', cycleDays: 21, lastDate: new Date(Date.now() - 15 * 86400000).toISOString() }, 
-                        ];
+                        items.value = [{ id: 1, name: '剪頭髮', cycleDays: 21, lastDate: new Date(Date.now() - 15 * 86400000).toISOString() }];
                     }
                 });
 
-                watch(items, (newVal) => {
-                    localStorage.setItem('cycle-keeper-data', JSON.stringify(newVal));
-                }, { deep: true });
+                watch(items, (newVal) => { localStorage.setItem('cycle-keeper-data', JSON.stringify(newVal)); }, { deep: true });
 
                 const getDaysSince = (dateString) => {
-                    // 為了避免時區導致的誤差，只取日期部分比較
                     const last = new Date(dateString); 
                     const now = new Date();
-                    
-                    // 重置為當天 00:00:00 進行比較，只算過幾晚
-                    last.setHours(0,0,0,0);
-                    now.setHours(0,0,0,0);
-                    
+                    last.setHours(0,0,0,0); now.setHours(0,0,0,0);
                     const diffTime = now - last;
-                    // 如果是負數（未來日期），回傳 0
                     if (diffTime < 0) return 0;
-                    
-                    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
-                    return diffDays;
+                    return Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
                 };
 
                 const getProgressPercent = (item) => {
                     const days = getDaysSince(item.lastDate);
-                    const percent = (days / item.cycleDays) * 100;
-                    return Math.min(percent, 100);
+                    return Math.min((days / item.cycleDays) * 100, 100);
                 };
 
                 const getStatusColor = (item) => {
                     const percent = (getDaysSince(item.lastDate) / item.cycleDays) * 100;
-                    
-                    if (percent >= 100) {
-                        return { badge: 'bg-red-500/20 text-red-400 border border-red-500/30', bar: 'bg-red-500 animate-pulse-slow' };
-                    } else if (percent >= 75) {
-                        return { badge: 'bg-amber-500/20 text-amber-400 border border-amber-500/30', bar: 'bg-amber-500' };
-                    } else {
-                        return { badge: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30', bar: 'bg-emerald-500' };
-                    }
+                    if (percent >= 100) return { badge: 'bg-red-500/20 text-red-400 border border-red-500/30', bar: 'bg-red-500 animate-pulse-slow' };
+                    if (percent >= 75) return { badge: 'bg-amber-500/20 text-amber-400 border border-amber-500/30', bar: 'bg-amber-500' };
+                    return { badge: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30', bar: 'bg-emerald-500' };
                 };
 
                 const getStatusText = (item) => {
@@ -241,42 +212,27 @@
                 const getCalendarUrl = (item) => {
                     const last = new Date(item.lastDate);
                     let nextDate = new Date(last.getTime() + (item.cycleDays * 24 * 60 * 60 * 1000));
-                    
-                    if (nextDate < new Date()) {
-                        nextDate = new Date();
-                        nextDate.setDate(nextDate.getDate() + 1);
-                    }
-
-                    const formatDate = (d) => {
-                        return d.toISOString().replace(/-|:|\.\d\d\d/g, "").substring(0, 8);
-                    };
-
-                    const dateStr = formatDate(nextDate);
+                    if (nextDate < new Date()) { nextDate = new Date(); nextDate.setDate(nextDate.getDate() + 1); }
+                    const dateStr = nextDate.toISOString().replace(/-|:|\.\d\d\d/g, "").substring(0, 8);
                     const details = `該${item.name}囉！已經過了 ${item.cycleDays} 天的週期。`;
-                    
                     return `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(item.name)}&dates=${dateStr}/${dateStr}&details=${encodeURIComponent(details)}`;
                 };
 
                 const addItem = () => {
                     if (!newItem.value.name || !newItem.value.cycleDays || !newItem.value.lastDate) return;
-                    
                     items.value.push({
                         id: Date.now(),
                         name: newItem.value.name,
                         cycleDays: newItem.value.cycleDays,
-                        // 儲存時統一轉為 ISO 字串，確保格式一致
-                        lastDate: new Date(newItem.value.lastDate).toISOString() 
+                        lastDate: new Date(newItem.value.lastDate).toISOString()
                     });
-                    
                     showAddModal.value = false;
                 };
 
                 const resetItem = (id) => {
                     if(!confirm('確定剛剛完成了這個任務嗎？')) return;
                     const item = items.value.find(i => i.id === id);
-                    if (item) {
-                        item.lastDate = new Date().toISOString();
-                    }
+                    if (item) item.lastDate = new Date().toISOString();
                 };
 
                 const deleteItem = (id) => {
@@ -293,8 +249,7 @@
                 });
 
                 return {
-                    items, sortedItems, showAddModal, newItem, openAddModal,
-                    addItem, resetItem, deleteItem,
+                    items, sortedItems, showAddModal, newItem, openAddModal, addItem, resetItem, deleteItem,
                     getDaysSince, getProgressPercent, getStatusColor, getStatusText, getCalendarUrl
                 };
             }
