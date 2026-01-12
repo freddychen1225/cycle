@@ -9,9 +9,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Cycle Keeper">
 
-    <title>Cycle Keeper | 週期管家 (Cloud)</title>
+    <title>Cycle Keeper | 週期管家 (Cloud v2)</title>
     
-    <!-- 圖示設定 -->
     <link rel="icon" type="image/png" href="icon.png">
     <link rel="apple-touch-icon" href="icon.png">
     
@@ -38,8 +37,6 @@
         @keyframes pulse-glow { 0%, 100% { opacity: 1; } 50% { opacity: 0.8; } }
         .animate-pulse-slow { animation: pulse-glow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
         input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
-        
-        /* Loading Spinner */
         .spinner { border: 2px solid rgba(255,255,255,0.1); border-left-color: #34D399; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
@@ -52,12 +49,10 @@
         <div class="fixed top-0 left-0 w-full z-50 pointer-events-none">
             <div class="max-w-md mx-auto relative">
                 <div v-if="syncStatus !== 'idle'" 
-                     class="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-md text-xs font-medium transition-all duration-300"
-                     :class="syncStatus === 'saving' || syncStatus === 'loading' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'">
-                    <div v-if="syncStatus === 'saving' || syncStatus === 'loading'" class="spinner"></div>
-                    <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                    </svg>
+                     class="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-md text-xs font-medium transition-all duration-300 shadow-lg border"
+                     :class="syncStatus === 'saving' || syncStatus === 'loading' ? 'bg-indigo-500/80 text-white border-indigo-400/50' : (syncStatus === 'error' ? 'bg-red-500/80 text-white border-red-400/50' : 'bg-emerald-500/80 text-white border-emerald-400/50')">
+                    <div v-if="syncStatus === 'saving' || syncStatus === 'loading'" class="spinner border-white"></div>
+                    <span v-else>{{ syncStatus === 'saved' ? '✓' : '!' }}</span>
                     <span>{{ syncText }}</span>
                 </div>
             </div>
@@ -82,7 +77,6 @@
             </button>
         </header>
 
-        <!-- Loading 遮罩 (初次載入時) -->
         <div v-if="isInitialLoading" class="flex flex-col items-center justify-center py-20 text-gray-500 space-y-4">
             <div class="w-10 h-10 border-4 border-indigo-500/30 border-l-indigo-500 rounded-full animate-spin"></div>
             <p class="text-sm">正在從雲端讀取資料...</p>
@@ -120,12 +114,12 @@
                 </div>
 
                 <div class="flex gap-2 mt-2">
-                    <button @click="resetItem(item.id)" 
+                    <button @click="openResetModal(item)" 
                             class="flex-1 bg-gray-700 hover:bg-gray-600 active:bg-gray-500 text-white py-2 px-4 rounded-lg text-sm font-medium smooth-transition flex justify-center items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
-                        重置
+                        重置...
                     </button>
 
                     <a :href="getCalendarUrl(item)" target="_blank"
@@ -145,10 +139,10 @@
             </div>
         </div>
 
+        <!-- 新增視窗 -->
         <div v-if="showAddModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-80 backdrop-blur-sm">
             <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-gray-700">
                 <h2 class="text-xl font-bold text-white mb-4">新增追蹤週期</h2>
-                
                 <div class="space-y-4">
                     <div>
                         <label class="block text-sm text-gray-400 mb-1">任務名稱</label>
@@ -161,13 +155,35 @@
                     <div>
                         <label class="block text-sm text-gray-400 mb-1">上次執行日期</label>
                         <input v-model="newItem.lastDate" type="date" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-indigo-500">
-                        <p class="text-xs text-gray-500 mt-1">預設為今天，可回溯補登。</p>
+                    </div>
+                </div>
+                <div class="flex gap-3 mt-6">
+                    <button @click="showAddModal = false" class="flex-1 py-3 text-gray-400 hover:text-white">取消</button>
+                    <button @click="addItem" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg shadow-lg" :disabled="syncStatus === 'saving'">
+                        {{ syncStatus === 'saving' ? '儲存中...' : '新增' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 重置確認視窗 (新增功能) -->
+        <div v-if="showResetModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-80 backdrop-blur-sm">
+            <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-gray-700">
+                <h2 class="text-xl font-bold text-white mb-2">完成任務確認</h2>
+                <p class="text-sm text-gray-400 mb-4">你是什麼時候完成這個任務的？</p>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">完成日期</label>
+                        <input v-model="resetDate" type="date" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-indigo-500">
                     </div>
                 </div>
 
                 <div class="flex gap-3 mt-6">
-                    <button @click="showAddModal = false" class="flex-1 py-3 text-gray-400 hover:text-white">取消</button>
-                    <button @click="addItem" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg shadow-lg">新增</button>
+                    <button @click="showResetModal = false" class="flex-1 py-3 text-gray-400 hover:text-white">取消</button>
+                    <button @click="confirmReset" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg shadow-lg" :disabled="syncStatus === 'saving'">
+                        {{ syncStatus === 'saving' ? '儲存中...' : '確認完成' }}
+                    </button>
                 </div>
             </div>
         </div>
@@ -175,9 +191,8 @@
     </div>
 
     <script>
-        const { createApp, ref, computed, onMounted, watch } = Vue;
+        const { createApp, ref, computed, onMounted } = Vue;
 
-        // JSONbin 設定 (已更新為專用的新 Bin)
         const BIN_ID = '6940c8b1d0ea881f402c4067';
         const MASTER_KEY = '$2a$10$KswvGv7VOFlGbWvZCr8W9uZKsQ3rJWGsV3JWj8czKDfCm1E9/c91y';
         const API_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
@@ -185,10 +200,13 @@
         createApp({
             setup() {
                 const showAddModal = ref(false);
+                const showResetModal = ref(false); // 新增：重置視窗控制
+                const resetTargetId = ref(null);   // 新增：目前要重置的項目 ID
+                const resetDate = ref('');         // 新增：重置選擇的日期
+
                 const newItem = ref({ name: '', cycleDays: null, lastDate: '' });
                 const items = ref([]);
                 
-                // 雲端同步狀態: 'idle' | 'loading' | 'saving' | 'saved' | 'error'
                 const syncStatus = ref('loading');
                 const isInitialLoading = ref(true);
 
@@ -198,8 +216,7 @@
                     return (new Date(d - offset)).toISOString().slice(0, 10);
                 };
 
-                // --- 雲端功能開始 ---
-
+                // --- 雲端核心功能 ---
                 const loadFromCloud = async () => {
                     syncStatus.value = 'loading';
                     try {
@@ -207,14 +224,13 @@
                             method: 'GET',
                             headers: { 'X-Master-Key': MASTER_KEY }
                         });
+                        if (!res.ok) throw new Error(res.statusText);
                         const data = await res.json();
-                        // JSONbin v3 的資料包裹在 record 屬性下
                         items.value = data.record || [];
                         syncStatus.value = 'idle';
                     } catch (e) {
                         console.error('Load failed', e);
                         syncStatus.value = 'error';
-                        // 如果讀取失敗，嘗試讀取本地備份
                         const saved = localStorage.getItem('cycle-keeper-backup');
                         if (saved) items.value = JSON.parse(saved);
                     } finally {
@@ -222,10 +238,11 @@
                     }
                 };
 
+                // 改良：強制直接存檔 (不使用 debounce)，解決刪除後沒存到的問題
                 const saveToCloud = async (newItems) => {
                     syncStatus.value = 'saving';
                     try {
-                        await fetch(API_URL, {
+                        const res = await fetch(API_URL, {
                             method: 'PUT',
                             headers: { 
                                 'Content-Type': 'application/json',
@@ -233,30 +250,18 @@
                             },
                             body: JSON.stringify(newItems)
                         });
+                        if (!res.ok) throw new Error(res.statusText);
+                        
                         syncStatus.value = 'saved';
                         setTimeout(() => { if(syncStatus.value === 'saved') syncStatus.value = 'idle'; }, 2000);
-                        
-                        // 順便存一份本地備份以防萬一
                         localStorage.setItem('cycle-keeper-backup', JSON.stringify(newItems));
                     } catch (e) {
                         console.error('Save failed', e);
                         syncStatus.value = 'error';
+                        alert("雲端同步失敗，請檢查網路！");
                     }
                 };
-
-                // 簡單的防抖動 (Debounce)，避免連續寫入
-                let timeout = null;
-                watch(items, (newVal) => {
-                    // 如果還是初始讀取狀態，不要觸發存檔
-                    if (isInitialLoading.value) return;
-
-                    if (timeout) clearTimeout(timeout);
-                    timeout = setTimeout(() => {
-                        saveToCloud(newVal);
-                    }, 1000); // 延遲 1 秒後才存檔
-                }, { deep: true });
-
-                // --- 雲端功能結束 ---
+                // --- 雲端結束 ---
 
                 onMounted(() => {
                     loadFromCloud();
@@ -268,7 +273,7 @@
                         case 'saving': return '同步中...';
                         case 'saved': return '已同步';
                         case 'error': return '同步失敗';
-                        default: return '';
+                        default: return '就緒';
                     }
                 });
 
@@ -314,26 +319,52 @@
                     return `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(item.name)}&dates=${dateStr}/${dateStr}&details=${encodeURIComponent(details)}`;
                 };
 
-                const addItem = () => {
-                    if (!newItem.value.name || !newItem.value.cycleDays || !newItem.value.lastDate) return;
+                // 修復：新增功能的檢查邏輯放寬，並改為強制同步
+                const addItem = async () => {
+                    // 只要有名稱和天數就允許新增 (日期沒填會自動補今天)
+                    if (!newItem.value.name || !newItem.value.cycleDays) {
+                        alert("請至少輸入任務名稱和週期天數！");
+                        return;
+                    }
+                    
+                    const dateToSave = newItem.value.lastDate ? new Date(newItem.value.lastDate).toISOString() : new Date().toISOString();
+
                     items.value.push({
                         id: Date.now(),
                         name: newItem.value.name,
                         cycleDays: newItem.value.cycleDays,
-                        lastDate: new Date(newItem.value.lastDate).toISOString()
+                        lastDate: dateToSave
                     });
+                    
+                    await saveToCloud(items.value); // 強制存檔
                     showAddModal.value = false;
                 };
 
-                const resetItem = (id) => {
-                    if(!confirm('確定剛剛完成了這個任務嗎？')) return;
-                    const item = items.value.find(i => i.id === id);
-                    if (item) item.lastDate = new Date().toISOString();
+                // 新增：打開重置視窗
+                const openResetModal = (item) => {
+                    resetTargetId.value = item.id;
+                    resetDate.value = getTodayString(); // 預設今天
+                    showResetModal.value = true;
                 };
 
-                const deleteItem = (id) => {
+                // 新增：確認重置 (支援回溯日期)
+                const confirmReset = async () => {
+                    if (!resetTargetId.value) return;
+                    
+                    const item = items.value.find(i => i.id === resetTargetId.value);
+                    if (item) {
+                        // 使用使用者選擇的日期
+                        item.lastDate = new Date(resetDate.value).toISOString();
+                        await saveToCloud(items.value); // 強制存檔
+                    }
+                    showResetModal.value = false;
+                };
+
+                // 修復：刪除後強制同步
+                const deleteItem = async (id) => {
                     if(!confirm('確定要刪除嗎？')) return;
                     items.value = items.value.filter(i => i.id !== id);
+                    await saveToCloud(items.value); // 強制存檔
                 };
 
                 const sortedItems = computed(() => {
@@ -345,7 +376,11 @@
                 });
 
                 return {
-                    items, sortedItems, showAddModal, newItem, openAddModal, addItem, resetItem, deleteItem,
+                    items, sortedItems, 
+                    showAddModal, showResetModal, // 新增
+                    newItem, resetDate,           // 新增
+                    openAddModal, openResetModal, confirmReset, // 新增
+                    addItem, deleteItem,
                     getDaysSince, getProgressPercent, getStatusColor, getStatusText, getCalendarUrl,
                     syncStatus, syncText, isInitialLoading
                 };
